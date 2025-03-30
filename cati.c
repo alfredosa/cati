@@ -1,6 +1,8 @@
 #include <errno.h>
 #include <fcntl.h>
+#include <iso646.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,6 +12,10 @@
 #include <sys/time.h>
 #include <termios.h>
 #include <unistd.h>
+
+// NOTE: Can we run this file through zig?
+// maybe we dont want to split this?
+#define arr_len(x) sizeof(x) / sizeof(a[0])
 
 struct winsize query_window_size() {
   struct winsize w;
@@ -126,6 +132,7 @@ bool detect_kitty_graphics_protocol() {
 static char base64_table[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
+// TODO: ADD TEST
 size_t base64_encode(const unsigned char *data, size_t input_length,
                      char *encoded_data) {
   size_t output_length = 4 * ((input_length + 2) / 3);
@@ -202,10 +209,101 @@ void write_chunked(FILE *output, const unsigned char *data, size_t data_size,
   free(encoded_data);
 }
 
+int print_image(char *path) {
+  FILE *file = fopen(path, "rb");
+  if (!file) {
+    perror("Failed to open file");
+    return 1;
+  }
+
+  fseek(file, 0, SEEK_END);
+  long file_size = ftell(file);
+  fseek(file, 0, SEEK_SET);
+
+  unsigned char *file_data = (unsigned char *)malloc(file_size);
+  if (!file_data) {
+    perror("Memory allocation failed");
+    fclose(file);
+    return 1;
+  }
+
+  if (fread(file_data, 1, file_size, file) != (size_t)file_size) {
+    perror("Failed to read file");
+    free(file_data);
+    fclose(file);
+    return 1;
+  }
+
+  // Write chunked data
+  write_chunked(stdout, file_data, file_size, "a=T,f=100");
+
+  // Clean up
+  free(file_data);
+  fclose(file);
+
+  return 0;
+}
+
+// TODO: Add colors for pretty print
+#define testsummary(i) return i;
+
+#define assert(x, y) ((x) == (y))
+
+// Maybe add nil pointer detection
+#define t_log(s)                                                               \
+  printf("   TEST LOG: ");                                                     \
+  printf("%s", s);                                                             \
+  printf("\n")
+
+#define t_run(res, test)                                                       \
+  {                                                                            \
+    int r = test;                                                              \
+    printf("TEST %s: %s\n", #test, r == 0 ? "PASSED" : "FAILED");              \
+    res += r;                                                                  \
+  }
+
+int test_base_encoding() {
+  char *d;
+  int result = 0; // Initialize result to 0 (success)
+  size_t encoded_size = 4 * ((3 + 2) / 3);
+  char *encoded_data = (char *)malloc(encoded_size + 1);
+  if (!encoded_data) {
+    perror("Memory allocation failed");
+    result = 1;
+  }
+  const unsigned char input[] = "123";
+  size_t s = base64_encode(input, 3, encoded_data);
+  if (strcmp(encoded_data, "MTIz") != 0) {
+    result = 1;
+  }
+  t_log(encoded_data);
+  free(encoded_data);
+  testsummary(result);
+}
+
+int test_macros() {
+  int result = 0;
+  // golang style
+  t_log("im running this giga test");
+  testsummary(result);
+}
+
+int run_tests() {
+  int fails = 0;
+  // NOTE: Do I like this? Ugly shit
+  t_run(fails, test_base_encoding());
+  t_run(fails, test_macros());
+  return fails;
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 2) {
     fprintf(stderr, "Usage: %s <filename>\n", argv[0]);
     return 1;
+  }
+
+  if (strcmp(argv[1], "--test") == 0 or strcmp(argv[1], "-t") == 0) {
+    return run_tests();
   }
 
   bool has_kitty = detect_kitty_graphics_protocol();
@@ -219,39 +317,9 @@ int main(int argc, char *argv[]) {
   }
 
   for (int i = 1; i < argc; i++) {
-
-    FILE *file = fopen(argv[i], "rb");
-    if (!file) {
-      perror("Failed to open file");
-      return 1;
+    if (print_image(argv[i]) != 0) {
+      printf("failed to print image %s\n", argv[i]);
     }
-
-    // Get file size
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-
-    // Read file content
-    unsigned char *file_data = (unsigned char *)malloc(file_size);
-    if (!file_data) {
-      perror("Memory allocation failed");
-      fclose(file);
-      return 1;
-    }
-
-    if (fread(file_data, 1, file_size, file) != (size_t)file_size) {
-      perror("Failed to read file");
-      free(file_data);
-      fclose(file);
-      return 1;
-    }
-
-    // Write chunked data
-    write_chunked(stdout, file_data, file_size, "a=T,f=100");
-
-    // Clean up
-    free(file_data);
-    fclose(file);
   }
 
   return 0;
