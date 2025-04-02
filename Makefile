@@ -1,5 +1,11 @@
 build:
 	@zig cc cati.c -o cati
 
-test: build
+clean:
+	@rm cati
+
+run-test:
 	@./cati --test
+
+test: build run-test clean
+	@echo "______ completed ______"
