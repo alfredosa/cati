@@ -1,7 +1,7 @@
 mod kitty;
 mod termios;
 
-use std::{env, error::Error};
+use std::{env, path};
 
 use kitty::is_kitty_protocol_supported;
 use log::{debug, error, info};
@@ -16,13 +16,11 @@ impl CLI {
     pub fn parse() -> Result<Self, String> {
         let args: Vec<String> = env::args().collect();
         if args.len() < 2 {
-            usage();
             return Err("Not enough arguments".to_string());
         }
 
         let ascii = args.contains(&"--ascii".to_string());
 
-        // Get files (excluding program name and flags)
         let files: Vec<String> = args
             .iter()
             .skip(1) // Skip program name
@@ -31,7 +29,6 @@ impl CLI {
             .collect();
 
         if files.len() == 0 {
-            usage();
             return Err("Not enough arguments".to_string());
         }
         Ok(CLI { ascii, files })
@@ -55,7 +52,18 @@ fn run() -> Result<(), String> {
     }
 
     println!("Found {} files", cli.files.len());
+    cli.files.iter().for_each(|f| {
+        let mut i: kitty::Images;
+        if f.ends_with(".png") {
+            i = kitty::Images::PNG;
+        } else {
+            i = kitty::Images::JPEG;
+        }
 
+        // TODO: Better logging.
+        kitty::print_image(i, path::Path::new(f))
+            .expect("oh my something happened at the printing of the file");
+    });
     Ok(())
 }
 
@@ -66,13 +74,15 @@ fn main() {
     env_logger::init();
 
     if let Err(e) = run() {
-        eprintln!("Error: {}", e);
+        eprintln!("{e}");
+        usage();
+
         std::process::exit(1);
     }
 }
 
 fn usage() {
-    info!("cati (cat image):");
-    info!("    --ascii: prints in ascii the image");
-    info!("    <files>: list of files to print");
+    println!("cati (cat image):");
+    println!("    --ascii: prints in ascii the image");
+    println!("    <files>: list of files to print");
 }

@@ -3,15 +3,34 @@ use super::termios;
 use std::{
     io::{stdin, stdout, Write},
     os::fd::{AsRawFd, BorrowedFd, RawFd},
+    path,
 };
 
-use log::error;
+use log::{debug, error, info};
 use nix::sys::{
     select::{select, FdSet},
     time::{TimeVal, TimeValLike},
 };
 use nix::unistd::read;
 use std::{thread, time};
+
+pub enum Images {
+    JPEG,
+    PNG,
+}
+
+fn print_png() {
+    debug!("printing png");
+}
+pub fn print_image(i: Images, path: &path::Path) -> Result<(), String> {
+    match i {
+        Images::PNG => {
+            print_png();
+        }
+        _ => unreachable!("unimplemented image type"),
+    }
+    Ok(())
+}
 
 /// Safely insert a RawFd into an FdSet
 fn insert_fd_into_set(fd_set: &mut FdSet, fd: RawFd) -> bool {
